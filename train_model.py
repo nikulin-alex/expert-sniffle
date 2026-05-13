@@ -40,8 +40,8 @@ def calculate_reduction_percent(record: dict) -> float:
     # Процент снижения = ((НМЦК - Итоговая) / НМЦК) * 100
     reduction = ((nmcc - final_price) / nmcc) * 100
     
-    # Ограничиваем разумными пределами
-    return max(0.0, min(100.0, reduction))
+    # Ограничиваем разумными пределами и округляем до 2 знаков
+    return round(max(0.0, min(100.0, reduction)), 2)
 
 
 def load_data(file_path: str) -> list:
