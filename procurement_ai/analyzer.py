@@ -195,10 +195,10 @@ class ProcurementAnalyzer:
         )
         
         if reductions:
-            summary.avg_reduction = sum(reductions) / len(reductions)
-            summary.min_reduction = min(reductions)
-            summary.max_reduction = max(reductions)
-            summary.median_reduction = calculate_median(reductions)
+            summary.avg_reduction = round(sum(reductions) / len(reductions), 2)
+            summary.min_reduction = round(min(reductions), 2)
+            summary.max_reduction = round(max(reductions), 2)
+            summary.median_reduction = round(calculate_median(reductions), 2)
         
         return summary
     
