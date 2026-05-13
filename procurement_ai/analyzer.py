@@ -83,20 +83,16 @@ class ProcurementAnalyzer:
                 work_similarity = similarity_score(work_type, proc.work_type)
                 score += work_similarity * 0.25
             
-            # Проверка по ключевым словам (вес 10%)
-            if keywords:
-                max_score += 0.1
-                proc_text = normalize_text(proc.work_type)
-                matches = sum(1 for kw in keywords if kw.lower() in proc_text)
-                if matches > 0:
-                    score += (matches / len(keywords)) * 0.1
-            
             # Проверка по диапазону НМЦК (вес 10%)
             if nmck_range:
                 max_score += 0.1
                 nmck_min, nmck_max = nmck_range
                 if nmck_min <= proc.nmck <= nmck_max:
                     score += 0.1
+            
+            # Пропускаем записи без аукционов (нечего анализировать)
+            if not proc.auctions or len(proc.auctions) == 0:
+                continue
             
             # Добавляем запись если схожесть выше порога
             if max_score > 0 and score / max_score >= min_similarity:
