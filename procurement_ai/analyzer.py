@@ -61,9 +61,22 @@ class ProcurementAnalyzer:
         """
         similar = []
         
+        # Вычисляем дату отсечения для периода
+        cutoff_date = None
+        if period_years > 0:
+            cutoff_date = datetime.now() - timedelta(days=period_years * 365)
+        
         # Если ни один фильтр не задан, возвращаем все записи с аукционами
         if not customer and not region and not work_type and not nmck_range:
-            return [p for p in self.procurements if p.auction_results and len(p.auction_results) > 0]
+            result = []
+            for p in self.procurements:
+                if not p.auction_results or len(p.auction_results) == 0:
+                    continue
+                # Применяем фильтр по периоду
+                if cutoff_date and p.publication_date and p.publication_date < cutoff_date:
+                    continue
+                result.append(p)
+            return result
         
         for proc in self.procurements:
             score = 0.0
@@ -96,6 +109,10 @@ class ProcurementAnalyzer:
             
             # Пропускаем записи без аукционов (нечего анализировать)
             if not proc.auction_results or len(proc.auction_results) == 0:
+                continue
+            
+            # Применяем фильтр по периоду
+            if cutoff_date and proc.publication_date and proc.publication_date < cutoff_date:
                 continue
             
             # Добавляем запись если схожесть выше порога

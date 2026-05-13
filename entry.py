@@ -76,8 +76,8 @@ def main():
     parser.add_argument(
         "--period", "-p",
         type=int,
-        default=3,
-        help="Период поиска в годах (по умолчанию: 3)"
+        default=0,
+        help="Период поиска в годах (по умолчанию: 0 - без ограничений по времени)"
     )
     
     parser.add_argument(
