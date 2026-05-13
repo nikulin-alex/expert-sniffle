@@ -4,31 +4,32 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-
-# Dependencies
-.venv/
-venv/
+.Python
 env/
-.env
-.env.local
-.env.*
+venv/
+.venv/
+.ENV
+.ENV.local
 
 # Logs
 *.log
 
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
-# OS
-.DS_Store
-Thumbs.db
+# Environment
+.env
+.env.local
+*.env.*
+
+# Coverage
+.coverage
+htmlcov/
+coverage/
+
+# Distribution
+dist/
+build/
+*.egg-info/
 ```

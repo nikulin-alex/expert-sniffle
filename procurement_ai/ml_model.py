@@ -1,12 +1,19 @@
 """
 Модуль извлечения признаков и ML-модели для предсказания снижения цены.
-Использует только стандартную библиотеку Python (логистическая регрессия с градиентным спуском).
+Использует LightGBM для высокой точности предсказаний.
 """
 
 import math
 import json
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
+
+try:
+    import lightgbm as lgb
+    import numpy as np
+    LIGHTGBM_AVAILABLE = True
+except ImportError:
+    LIGHTGBM_AVAILABLE = False
 
 
 class FeatureExtractor:
@@ -155,99 +162,83 @@ class FeatureExtractor:
         return names
 
 
-class LogisticRegressionModel:
-    """Простая модель линейной регрессии с градиентным спуском для предсказания процента снижения."""
+class LightGBMModel:
+    """Модель на основе LightGBM для предсказания процента снижения."""
     
-    def __init__(self, learning_rate: float = 0.01, n_iterations: int = 1000, regularization: float = 0.01):
+    def __init__(self, n_estimators: int = 100, learning_rate: float = 0.1, max_depth: int = 6, random_state: int = 42):
+        self.n_estimators = n_estimators
         self.learning_rate = learning_rate
-        self.n_iterations = n_iterations
-        self.regularization = regularization
-        self.weights = None
-        self.bias = 0.0
+        self.max_depth = max_depth
+        self.random_state = random_state
+        self.model = None
         self.is_fitted = False
         self.training_history = []
     
-    def _sigmoid(self, z: float) -> float:
-        """Сигмоидная функция (для ограничения предсказаний)."""
-        # Клиппирование для избежания переполнения
-        z = max(-500, min(500, z))
-        return 1 / (1 + math.exp(-z))
-    
     def fit(self, X: List[List[float]], y: List[float], verbose: bool = True):
         """Обучение модели на данных."""
+        if not LIGHTGBM_AVAILABLE:
+            raise ImportError("LightGBM не установлен. Установите: pip install lightgbm")
+        
         if not X or not y:
             raise ValueError("Данные для обучения пусты")
         
-        n_samples = len(X)
-        n_features = len(X[0])
+        # Конвертация в numpy arrays
+        X_np = np.array(X)
+        y_np = np.array(y)
         
-        # Инициализация весов
-        self.weights = [0.0] * n_features
-        self.bias = 0.0
-        self.training_history = []
+        # Создание датасета LightGBM
+        train_data = lgb.Dataset(X_np, label=y_np)
         
-        for iteration in range(self.n_iterations):
-            total_loss = 0.0
-            
-            # Градиентный спуск
-            weight_gradients = [0.0] * n_features
-            bias_gradient = 0.0
-            
-            for i in range(n_samples):
-                # Предсказание
-                prediction = self._predict_single(X[i])
-                
-                # Ошибка
-                error = prediction - y[i]
-                
-                # MSE loss
-                total_loss += error ** 2
-                
-                # Градиенты
-                for j in range(n_features):
-                    weight_gradients[j] += error * X[i][j]
-                bias_gradient += error
-            
-            # Усреднение градиентов и добавление регуляризации
-            for j in range(n_features):
-                weight_gradients[j] = weight_gradients[j] / n_samples + self.regularization * self.weights[j]
-            bias_gradient /= n_samples
-            
-            # Обновление весов
-            for j in range(n_features):
-                self.weights[j] -= self.learning_rate * weight_gradients[j]
-            self.bias -= self.learning_rate * bias_gradient
-            
-            avg_loss = total_loss / n_samples
-            self.training_history.append(avg_loss)
-            
-            if verbose and iteration % 100 == 0:
-                print(f"Итерация {iteration}, Loss: {avg_loss:.6f}")
+        # Параметры модели
+        params = {
+            'objective': 'regression',
+            'metric': 'mse',
+            'boosting_type': 'gbdt',
+            'num_leaves': 31,
+            'learning_rate': self.learning_rate,
+            'feature_fraction': 0.9,
+            'bagging_fraction': 0.8,
+            'bagging_freq': 5,
+            'verbose': -1,
+            'seed': self.random_state,
+            'n_jobs': -1
+        }
+        
+        # Обучение с сохранением истории
+        evals_result = {}
+        self.model = lgb.train(
+            params,
+            train_data,
+            num_boost_round=self.n_estimators,
+            valid_sets=[train_data],
+            callbacks=[
+                lgb.record_evaluation(evals_result),
+                lgb.log_evaluation(period=100 if verbose else 0)
+            ]
+        )
+        
+        # Сохранение истории обучения
+        self.training_history = evals_result.get('training', {}).get('mse', [])
         
         self.is_fitted = True
         
         return {'loss_history': self.training_history}
-    
-    def _predict_single(self, x: List[float]) -> float:
-        """Предсказание для одного образца."""
-        result = self.bias
-        for i, xi in enumerate(x):
-            result += self.weights[i] * xi
-        return result
     
     def predict(self, X: List[List[float]]) -> List[float]:
         """Предсказание процента снижения для множества образцов."""
         if not self.is_fitted:
             raise ValueError("Модель должна быть обучена методом fit()")
         
-        predictions = []
-        for x in X:
-            pred = self._predict_single(x)
-            # Ограничение предсказания разумными пределами (0-100%)
-            pred = max(0.0, min(100.0, pred))
-            predictions.append(pred)
+        X_np = np.array(X)
+        predictions = self.model.predict(X_np)
         
-        return predictions
+        # Ограничение предсказания разумными пределами (0-100%)
+        if isinstance(predictions, list):
+            predictions = [max(0.0, min(100.0, pred)) for pred in predictions]
+            return predictions
+        else:
+            predictions = [max(0.0, min(100.0, pred)) for pred in predictions.tolist()]
+            return predictions
     
     def predict_with_confidence(self, X: List[List[float]]) -> List[Tuple[float, float]]:
         """Предсказание с оценкой уверенности (на основе дисперсии признаков)."""
@@ -266,6 +257,14 @@ class LogisticRegressionModel:
             confidences.append((predictions[i], confidence))
         
         return confidences
+    
+    def get_feature_importance(self) -> List[float]:
+        """Возвращает важность признаков."""
+        if not self.is_fitted:
+            raise ValueError("Модель должна быть обучена методом fit()")
+        
+        importance = self.model.feature_importance(importance_type='gain')
+        return importance.tolist()
 
 
 class ReductionStrategyPredictor:
@@ -273,7 +272,7 @@ class ReductionStrategyPredictor:
     
     def __init__(self):
         self.feature_extractor = FeatureExtractor()
-        self.model = LogisticRegressionModel(learning_rate=0.01, n_iterations=500)
+        self.model = LightGBMModel(n_estimators=100, learning_rate=0.1, max_depth=6)
         self.is_trained = False
     
     def train(self, records: List[Dict[str, Any]], target_field: str = 'reduction_percent', verbose: bool = True):
@@ -425,6 +424,14 @@ class ReductionStrategyPredictor:
     
     def save_model(self, filepath: str):
         """Сохранение модели в файл."""
+        if not LIGHTGBM_AVAILABLE:
+            raise ImportError("LightGBM не установлен. Установите: pip install lightgbm")
+        
+        # Сохранение модели LightGBM в текстовом формате
+        model_path = filepath.replace('.json', '.txt') if filepath.endswith('.json') else filepath + '.txt'
+        self.model.model.save_model(model_path)
+        
+        # Сохранение экстрактора признаков и метаданных
         model_data = {
             'feature_extractor': {
                 'word_vocab': self.feature_extractor.word_vocab,
@@ -432,25 +439,29 @@ class ReductionStrategyPredictor:
                 'procurement_type_map': self.feature_extractor.procurement_type_map,
                 'is_fitted': self.feature_extractor.is_fitted
             },
-            'model': {
-                'weights': self.model.weights,
-                'bias': self.model.bias,
-                'is_fitted': self.model.is_fitted,
+            'model_params': {
+                'n_estimators': self.model.n_estimators,
                 'learning_rate': self.model.learning_rate,
-                'n_iterations': self.model.n_iterations,
-                'regularization': self.model.regularization
+                'max_depth': self.model.max_depth,
+                'random_state': self.model.random_state
             },
+            'model_file': model_path,
             'is_trained': self.is_trained
         }
         
-        with open(filepath, 'w', encoding='utf-8') as f:
+        json_path = filepath if filepath.endswith('.json') else filepath + '.json'
+        with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(model_data, f, ensure_ascii=False, indent=2)
         
-        print(f"Модель сохранена в {filepath}")
+        print(f"Модель сохранена в {json_path} и {model_path}")
     
     def load_model(self, filepath: str):
         """Загрузка модели из файла."""
-        with open(filepath, 'r', encoding='utf-8') as f:
+        if not LIGHTGBM_AVAILABLE:
+            raise ImportError("LightGBM не установлен. Установите: pip install lightgbm")
+        
+        json_path = filepath if filepath.endswith('.json') else filepath + '.json'
+        with open(json_path, 'r', encoding='utf-8') as f:
             model_data = json.load(f)
         
         self.feature_extractor.word_vocab = model_data['feature_extractor']['word_vocab']
@@ -458,13 +469,18 @@ class ReductionStrategyPredictor:
         self.feature_extractor.procurement_type_map = model_data['feature_extractor']['procurement_type_map']
         self.feature_extractor.is_fitted = model_data['feature_extractor']['is_fitted']
         
-        self.model.weights = model_data['model']['weights']
-        self.model.bias = model_data['model']['bias']
-        self.model.is_fitted = model_data['model']['is_fitted']
-        self.model.learning_rate = model_data['model']['learning_rate']
-        self.model.n_iterations = model_data['model']['n_iterations']
-        self.model.regularization = model_data['model']['regularization']
+        # Загрузка модели LightGBM из текстового файла
+        model_file = model_data.get('model_file', filepath.replace('.json', '.txt') if filepath.endswith('.json') else filepath + '.txt')
+        self.model.model = lgb.Booster(model_file=model_file)
+        self.model.is_fitted = True
+        
+        # Восстановление параметров
+        params = model_data.get('model_params', {})
+        self.model.n_estimators = params.get('n_estimators', 100)
+        self.model.learning_rate = params.get('learning_rate', 0.1)
+        self.model.max_depth = params.get('max_depth', 6)
+        self.model.random_state = params.get('random_state', 42)
         
         self.is_trained = model_data['is_trained']
         
-        print(f"Модель загружена из {filepath}")
+        print(f"Модель загружена из {json_path} и {model_file}")
