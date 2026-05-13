@@ -43,7 +43,7 @@ class ProcurementAnalyzer:
         nmck_range: Tuple[float, float] = None,
         period_years: int = 0,
         min_similarity: float = 0.3,
-        require_auction: bool = True
+        require_auction: bool = False
     ) -> List[ProcurementRecord]:
         """
         Поиск схожих закупок по заданным критериям.
@@ -84,30 +84,45 @@ class ProcurementAnalyzer:
             score = 0.0
             max_score = 0.0
             
-            # Проверка по заказчику (вес 30%)
+            # Проверка по заказчику (вес 10%)
             if customer:
-                max_score += 0.3
-                if customer.lower() in proc.customer.lower() or proc.customer.lower() in customer.lower():
-                    score += 0.3
-            
-            # Проверка по региону (вес 25%)
-            if region:
-                max_score += 0.25
-                if region.lower() == proc.region.lower():
-                    score += 0.25
-            
-            # Проверка по виду работ (вес 25%)
-            if work_type:
-                max_score += 0.25
-                work_similarity = similarity_score(work_type, proc.work_type)
-                score += work_similarity * 0.25
-            
-            # Проверка по диапазону НМЦК (вес 10%)
-            if nmck_range:
                 max_score += 0.1
+                if customer.lower() in proc.customer.lower() or proc.customer.lower() in customer.lower():
+                    score += 0.1
+            
+            # Проверка по виду работ (вес 40%)
+            if work_type:
+                max_score += 0.4
+                work_similarity = similarity_score(work_type, proc.work_type)
+                score += work_similarity * 0.4
+            
+            # Проверка по диапазону НМЦК (вес 50%)
+            if nmck_range:
+                max_score += 0.5
                 nmck_min, nmck_max = nmck_range
                 if nmck_min <= proc.nmck <= nmck_max:
-                    score += 0.1
+                    # Чем ближе цена к середине диапазона, тем выше оценка
+                    range_mid = (nmck_min + nmck_max) / 2
+                    range_width = nmck_max - nmck_min
+                    if range_width > 0:
+                        deviation = abs(proc.nmck - range_mid) / range_width
+                        price_score = max(0, 1 - deviation)  # От 0 до 1
+                        score += 0.5 * price_score
+                    else:
+                        score += 0.5
+                else:
+                    # Если цена вне диапазона, но близко - даем частичный балл
+                    distance = 0
+                    if proc.nmck < nmck_min:
+                        distance = nmck_min - proc.nmck
+                    else:
+                        distance = proc.nmck - nmck_max
+                    
+                    # Нормализуем расстояние относительно размера диапазона
+                    range_width = nmck_max - nmck_min
+                    if range_width > 0 and distance < range_width:
+                        partial_score = 0.5 * (1 - distance / range_width)
+                        score += partial_score
             
             # Применяем фильтр по периоду
             if cutoff_date and proc.publication_date and proc.publication_date < cutoff_date:
@@ -173,7 +188,7 @@ class ProcurementAnalyzer:
         work_type: str = "",
         keywords: List[str] = None,
         nmck_range: Tuple[float, float] = None,
-        period_years: int = 3
+        period_years: int = 0
     ) -> AnalysisSummary:
         """
         Полный цикл анализа: поиск схожих закупок и формирование сводки.
