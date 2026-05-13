@@ -1,1 +1,4 @@
-Nothing should be ignored based on the provided file changes. The modification of 'procurement_ai/analyzer.py' is a source code file that should not be added to .gitignore.
+```
+# Test results
+test_result.json
+```

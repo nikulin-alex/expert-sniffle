@@ -61,6 +61,10 @@ class ProcurementAnalyzer:
         """
         similar = []
         
+        # Если ни один фильтр не задан, возвращаем все записи с аукционами
+        if not customer and not region and not work_type and not nmck_range:
+            return [p for p in self.procurements if p.auction_results and len(p.auction_results) > 0]
+        
         for proc in self.procurements:
             score = 0.0
             max_score = 0.0
