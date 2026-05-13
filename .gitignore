@@ -1,4 +1,3 @@
-```
 # Python
 __pycache__/
 *.pyc
@@ -9,6 +8,12 @@ env/
 venv/
 .venv/
 .ENV
+.ENV.local
+
+# Logs
+*.log
+
+# Environment
 .env
 .env.local
 .env.*
@@ -23,7 +28,6 @@ pip-delete-this-directory.txt
 nosetests.xml
 coverage.xml
 *.cover
-*.log
 .git/
 .mypy_cache/
 .pytest_cache/
@@ -59,24 +63,17 @@ wheels/
 # IDE
 .vscode/
 .idea/
-*.swp
-*.swo
-*.tmp
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Environment
-.env
-.env.local
-*.env.*
-
-# Logs
-*.log
-
 # Coverage
-coverage/
-htmlcov/
 .coverage
-```
+htmlcov/
+coverage/
+
+# Distribution
+dist/
+build/
+*.egg-info/
