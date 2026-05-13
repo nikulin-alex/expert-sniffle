@@ -147,6 +147,10 @@ class ProcurementAnalyzer:
             if require_auction and (not proc.auction_results or len(proc.auction_results) == 0):
                 continue
             
+            # Пропускаем записи без информации о снижении цены (для корректного прогноза)
+            if proc.reduction_percent is None:
+                continue
+            
             # Добавляем запись если схожесть выше порога
             if max_score > 0 and score / max_score >= min_similarity:
                 similar.append((proc, score / max_score))
@@ -191,10 +195,10 @@ class ProcurementAnalyzer:
         )
         
         if reductions:
-            summary.avg_reduction = sum(reductions) / len(reductions)
-            summary.min_reduction = min(reductions)
-            summary.max_reduction = max(reductions)
-            summary.median_reduction = calculate_median(reductions)
+            summary.avg_reduction = round(sum(reductions) / len(reductions), 2)
+            summary.min_reduction = round(min(reductions), 2)
+            summary.max_reduction = round(max(reductions), 2)
+            summary.median_reduction = round(calculate_median(reductions), 2)
         
         return summary
     
