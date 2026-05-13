@@ -101,7 +101,7 @@ class ProcurementAnalyzer:
                 score += work_similarity * 0.4
             
             # Проверка по ОКПД2 (вес 10%)
-            if okpd2 and proc.okpd2:
+            if okpd2 and hasattr(proc,'okpd2'):
                 max_score += 0.1
                 # Сравниваем первые знаки кода ОКПД2 (группировка)
                 okpd2_base = okpd2.replace(".", "")[:6]
@@ -148,7 +148,7 @@ class ProcurementAnalyzer:
                 continue
             
             # Пропускаем записи без информации о снижении цены (для корректного прогноза)
-            if proc.reduction_percent is None:
+            if proc.reduction_percent is None or proc.reduction_percent == 0:
                 continue
             
             # Добавляем запись если схожесть выше порога
