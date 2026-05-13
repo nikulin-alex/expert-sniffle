@@ -101,6 +101,20 @@ def main():
         help="Путь к файлу для сохранения результатов (по умолчанию: вывод в консоль)"
     )
     
+    parser.add_argument(
+        "--okpd2",
+        type=str,
+        default="",
+        help="Код ОКПД2 для поиска схожих закупок"
+    )
+    
+    parser.add_argument(
+        "--limit", "-l",
+        type=int,
+        default=5,
+        help="Максимальное количество результатов для отображения (по умолчанию: 5)"
+    )
+    
     args = parser.parse_args()
     
     # Определение файлов для загрузки
@@ -134,6 +148,7 @@ def main():
     customer = args.customer
     region = args.region
     work_type = args.work_type
+    okpd2_val = args.okpd2
     nmck_min_val = args.nmck_min
     nmck_max_val = args.nmck_max
     
@@ -153,6 +168,8 @@ def main():
                 region = new_record["Регион"]
             if not work_type and "Наименование объекта закупки" in new_record:
                 work_type = new_record["Наименование объекта закупки"]
+            if not okpd2_val and "okpd2" in new_record:
+                okpd2_val = new_record["okpd2"]
             if nmck_min_val is None and "Начальная (максимальная) цена контракта" in new_record:
                 nmck_str = new_record["Начальная (максимальная) цена контракта"]
                 if isinstance(nmck_str, str):
@@ -161,6 +178,7 @@ def main():
         except Exception as e:
             print(f"Ошибка при чтении новой закупки: {e}", file=sys.stderr)
             sys.exit(1)
+    
     
     # Формирование диапазона НМЦК
     nmck_range = None
@@ -174,11 +192,13 @@ def main():
         customer=customer,
         region=region,
         work_type=work_type,
+        okpd2=okpd2_val,
         keywords=args.keywords,
         nmck_range=nmck_range,
         period_years=args.period,
         min_similarity=args.min_similarity,
-        require_auction=False
+        require_auction=False,
+        limit=args.limit
     )
     
     # Формирование сводки
@@ -190,18 +210,21 @@ def main():
         current_nmck=nmck_range[0] if nmck_range else 0.0
     )
     
-    # Подготовка результата
+    # Подготовка результата в формате JSON
     result = {
-        "summary": {
-            "count": summary.count,
-            "customer": summary.customer,
-            "region": summary.region,
-            "work_type": summary.work_type,
-            "nmck": summary.nmck,
-            "avg_reduction": summary.avg_reduction,
-            "min_reduction": summary.min_reduction,
-            "max_reduction": summary.max_reduction,
-            "median_reduction": summary.median_reduction,
+        "analyzed_procurement": {
+            "customer": customer or "",
+            "region": region or "",
+            "work_type": work_type or "",
+            "okpd2": okpd2_val or "",
+            "nmck": nmck_range[0] if nmck_range else 0.0
+        },
+        "prediction": {
+            "average_reduction_percent": round(summary.avg_reduction, 2) if summary.avg_reduction else None,
+            "median_reduction_percent": round(summary.median_reduction, 2) if summary.median_reduction else None,
+            "min_reduction_percent": round(summary.min_reduction, 2) if summary.min_reduction else None,
+            "max_reduction_percent": round(summary.max_reduction, 2) if summary.max_reduction else None,
+            "predicted_final_price": round((nmck_range[0] if nmck_range else 0.0) * (1 - (summary.avg_reduction or 0) / 100), 2) if summary.avg_reduction else None
         },
         "similar_procurements": [
             {
@@ -214,7 +237,12 @@ def main():
                 "reduction_percent": p.reduction_percent,
             }
             for p in similar
-        ]
+        ],
+        "statistics": {
+            "total_found": len(similar),
+            "shown": min(len(similar), args.limit),
+            "currency": "RUB"
+        }
     }
     
     # Вывод результатов
@@ -223,12 +251,7 @@ def main():
             json.dump(result, f, ensure_ascii=False, indent=2)
         print(f"Результаты сохранены в файл: {args.output}")
     else:
-        print(str(summary))
-        print(f"\nНайдено схожих закупок: {len(similar)}")
-        for proc in similar[:10]:  # Показываем первые 10
-            print(f"  - {proc.reg_number}: {proc.work_type[:50]}... ({proc.nmck:,.2f} руб.)")
-        if len(similar) > 10:
-            print(f"  ... и ещё {len(similar) - 10}")
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
