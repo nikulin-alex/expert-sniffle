@@ -225,6 +225,8 @@ class LogisticRegressionModel:
                 print(f"Итерация {iteration}, Loss: {avg_loss:.6f}")
         
         self.is_fitted = True
+        
+        return {'loss_history': self.training_history}
     
     def _predict_single(self, x: List[float]) -> float:
         """Предсказание для одного образца."""
@@ -308,11 +310,13 @@ class ReductionStrategyPredictor:
             print(f"Обучение модели на {len(X)} записях...")
         
         # Передаём verbose в модель для контроля вывода
-        self.model.fit(X, y, verbose=verbose)
+        history = self.model.fit(X, y, verbose=verbose)
         self.is_trained = True
         
         if verbose:
             print("Обучение завершено!")
+        
+        return history
     
     def predict(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -4,71 +4,31 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-env/
-venv/
+
+# Dependencies
 .venv/
-.ENV
-.ENV.local
+venv/
+env/
 .env
 .env.local
 .env.*
-requirements.txt.bak
-pip-log.txt
-pip-delete-this-directory.txt
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
+
+# Logs
 *.log
-.git/
-.mypy_cache/
-.pytest_cache/
-.hypothesis/
 
-# Compiled and binary files
-*.class
-*.o
-*.so
-*.a
-*.obj
-*.out
-*.exe
-*.dll
-*.dylib
+# Coverage
+.coverage
+coverage/
+htmlcov/
 
-# Build and distribution artifacts
-dist/
-build/
-*.egg-info/
-.eggs/
-sdist/
-bdist/
-
-# Editors and IDEs
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *.tmp
 
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
-
-# Logs
-*.log
-
-# Coverage
-coverage/
-htmlcov/
-.coverage
 ```

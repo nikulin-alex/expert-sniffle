@@ -19,6 +19,29 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from procurement_ai.ml_model import ReductionStrategyPredictor
+from procurement_ai.utils import parse_price, extract_final_price
+
+
+def calculate_reduction_percent(record: dict) -> float:
+    """
+    Вычисляет процент снижения цены на основе НМЦК и итоговой цены контракта.
+    """
+    nmcc_str = record.get('Начальная (максимальная) цена контракта', '0')
+    nmcc = parse_price(nmcc_str)
+    
+    if nmcc <= 0:
+        return 0.0
+    
+    final_price = extract_final_price(record)
+    
+    if final_price <= 0:
+        return 0.0
+    
+    # Процент снижения = ((НМЦК - Итоговая) / НМЦК) * 100
+    reduction = ((nmcc - final_price) / nmcc) * 100
+    
+    # Ограничиваем разумными пределами
+    return max(0.0, min(100.0, reduction))
 
 
 def load_data(file_path: str) -> list:
@@ -71,15 +94,36 @@ def main():
             print("Предупреждение: Слишком мало данных для качественного обучения (< 5).")
         
         # 2. Инициализация и обучение
-        print("\n[2/4] Инициализация модели...")
+        print("\n[2/4] Подготовка данных (расчет процента снижения)...")
+        
+        # Добавляем поле reduction_percent к каждой записи
+        valid_records = []
+        skipped_count = 0
+        for record in procurements:
+            reduction = calculate_reduction_percent(record)
+            if reduction > 0:  # Только записи с положительным снижением
+                record['reduction_percent'] = reduction
+                valid_records.append(record)
+            else:
+                skipped_count += 1
+        
+        print(f"Записей с рассчитанным снижением: {len(valid_records)}")
+        if skipped_count > 0:
+            print(f"Пропущено записей (нет данных о снижении): {skipped_count}")
+        
+        if len(valid_records) < 5:
+            print("Предупреждение: Слишком мало данных для качественного обучения (< 5).")
+            sys.exit(1)
+        
+        print("\n[3/4] Инициализация модели...")
         predictor = ReductionStrategyPredictor()
 
-        print("\n[3/4] Обучение модели (градиентный спуск)...")
+        print("\n[4/4] Обучение модели (градиентный спуск)...")
         # verbose=True выведет информацию о процессе обучения
-        history = predictor.train(procurements, verbose=True)
+        history = predictor.train(valid_records, verbose=True)
 
-        # 3. Сохранение модели
-        print(f"\n[4/4] Сохранение модели в {model_path}...")
+        # 4. Сохранение модели
+        print(f"\n[5/5] Сохранение модели в {model_path}...")
         # Создаем директорию, если она не существует
         model_dir = os.path.dirname(model_path)
         if model_dir and not os.path.exists(model_dir):
