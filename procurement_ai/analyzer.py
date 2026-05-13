@@ -41,8 +41,9 @@ class ProcurementAnalyzer:
         work_type: str = "",
         keywords: List[str] = None,
         nmck_range: Tuple[float, float] = None,
-        period_years: int = 3,
-        min_similarity: float = 0.3
+        period_years: int = 0,
+        min_similarity: float = 0.3,
+        require_auction: bool = True
     ) -> List[ProcurementRecord]:
         """
         Поиск схожих закупок по заданным критериям.
@@ -53,8 +54,9 @@ class ProcurementAnalyzer:
             work_type: Вид работ/услуг для поиска.
             keywords: Список ключевых слов для поиска.
             nmck_range: Диапазон НМЦК (min, max).
-            period_years: Период поиска в годах.
+            period_years: Период поиска в годах (0 = без ограничений).
             min_similarity: Минимальный порог схожести (0-1).
+            require_auction: Требовать наличие результатов аукциона.
         
         Returns:
             Список схожих закупок.
@@ -66,11 +68,11 @@ class ProcurementAnalyzer:
         if period_years > 0:
             cutoff_date = datetime.now() - timedelta(days=period_years * 365)
         
-        # Если ни один фильтр не задан, возвращаем все записи с аукционами
+        # Если ни один фильтр не задан, возвращаем все записи (с аукционами или без)
         if not customer and not region and not work_type and not nmck_range:
             result = []
             for p in self.procurements:
-                if not p.auction_results or len(p.auction_results) == 0:
+                if require_auction and (not p.auction_results or len(p.auction_results) == 0):
                     continue
                 # Применяем фильтр по периоду
                 if cutoff_date and p.publication_date and p.publication_date < cutoff_date:
@@ -107,12 +109,12 @@ class ProcurementAnalyzer:
                 if nmck_min <= proc.nmck <= nmck_max:
                     score += 0.1
             
-            # Пропускаем записи без аукционов (нечего анализировать)
-            if not proc.auction_results or len(proc.auction_results) == 0:
-                continue
-            
             # Применяем фильтр по периоду
             if cutoff_date and proc.publication_date and proc.publication_date < cutoff_date:
+                continue
+            
+            # Если требуется аукцион, но его нет — пропускаем
+            if require_auction and (not proc.auction_results or len(proc.auction_results) == 0):
                 continue
             
             # Добавляем запись если схожесть выше порога
