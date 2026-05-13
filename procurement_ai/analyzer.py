@@ -39,24 +39,28 @@ class ProcurementAnalyzer:
         customer: str = "",
         region: str = "",
         work_type: str = "",
+        okpd2: str = "",
         keywords: List[str] = None,
         nmck_range: Tuple[float, float] = None,
         period_years: int = 0,
         min_similarity: float = 0.3,
-        require_auction: bool = False
+        require_auction: bool = False,
+        limit: int = 5
     ) -> List[ProcurementRecord]:
         """
         Поиск схожих закупок по заданным критериям.
         
         Args:
             customer: Наименование заказчика для поиска.
-            region: Регион для поиска.
+            region: Регион для поиска (не используется в расчёте схожести).
             work_type: Вид работ/услуг для поиска.
+            okpd2: Код ОКПД2 для поиска.
             keywords: Список ключевых слов для поиска.
             nmck_range: Диапазон НМЦК (min, max).
             period_years: Период поиска в годах (0 = без ограничений).
             min_similarity: Минимальный порог схожести (0-1).
             require_auction: Требовать наличие результатов аукциона.
+            limit: Максимальное количество возвращаемых результатов.
         
         Returns:
             Список схожих закупок.
@@ -69,7 +73,7 @@ class ProcurementAnalyzer:
             cutoff_date = datetime.now() - timedelta(days=period_years * 365)
         
         # Если ни один фильтр не задан, возвращаем все записи (с аукционами или без)
-        if not customer and not region and not work_type and not nmck_range:
+        if not customer and not work_type and not okpd2 and not nmck_range:
             result = []
             for p in self.procurements:
                 if require_auction and (not p.auction_results or len(p.auction_results) == 0):
@@ -78,7 +82,7 @@ class ProcurementAnalyzer:
                 if cutoff_date and p.publication_date and p.publication_date < cutoff_date:
                     continue
                 result.append(p)
-            return result
+            return result[:limit]
         
         for proc in self.procurements:
             score = 0.0
@@ -95,6 +99,17 @@ class ProcurementAnalyzer:
                 max_score += 0.4
                 work_similarity = similarity_score(work_type, proc.work_type)
                 score += work_similarity * 0.4
+            
+            # Проверка по ОКПД2 (вес 10%)
+            if okpd2 and proc.okpd2:
+                max_score += 0.1
+                # Сравниваем первые знаки кода ОКПД2 (группировка)
+                okpd2_base = okpd2.replace(".", "")[:6]
+                proc_okpd2_base = proc.okpd2.replace(".", "")[:6]
+                if okpd2_base == proc_okpd2_base:
+                    score += 0.1
+                elif okpd2_base[:4] == proc_okpd2_base[:4]:
+                    score += 0.05  # Частичное совпадение
             
             # Проверка по диапазону НМЦК (вес 50%)
             if nmck_range:
@@ -134,9 +149,11 @@ class ProcurementAnalyzer:
             
             # Добавляем запись если схожесть выше порога
             if max_score > 0 and score / max_score >= min_similarity:
-                similar.append(proc)
+                similar.append((proc, score / max_score))
         
-        return similar
+        # Сортируем по убыванию схожести и берём top N
+        similar.sort(key=lambda x: x[1], reverse=True)
+        return [p[0] for p in similar[:limit]]
     
     def generate_summary(
         self,
