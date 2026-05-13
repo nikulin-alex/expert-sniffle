@@ -19,7 +19,11 @@ class AuctionInfo:
         """Создание объекта из словаря."""
         amount = data.get("amount", "0")
         if isinstance(amount, str):
-            amount = float(amount.replace(" ", "").replace(",", "."))
+            amount = amount.replace(" ", "").replace(",", ".")
+            try:
+                amount = float(amount)
+            except ValueError:
+                amount = 0.0
         return cls(
             id=data.get("id", ""),
             status=data.get("status", ""),
