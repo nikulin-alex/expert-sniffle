@@ -43,7 +43,7 @@ class ProcurementAnalyzer:
         nmck_range: Tuple[float, float] = None,
         period_years: int = 0,
         min_similarity: float = 0.3,
-        require_auction: bool = True
+        require_auction: bool = False
     ) -> List[ProcurementRecord]:
         """
         Поиск схожих закупок по заданным критериям.
@@ -173,7 +173,7 @@ class ProcurementAnalyzer:
         work_type: str = "",
         keywords: List[str] = None,
         nmck_range: Tuple[float, float] = None,
-        period_years: int = 3
+        period_years: int = 0
     ) -> AnalysisSummary:
         """
         Полный цикл анализа: поиск схожих закупок и формирование сводки.

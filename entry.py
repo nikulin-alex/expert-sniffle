@@ -88,12 +88,6 @@ def main():
     )
     
     parser.add_argument(
-        "--no-auction-required",
-        action="store_true",
-        help="Не требовать наличие результатов аукциона для поиска схожих закупок"
-    )
-    
-    parser.add_argument(
         "--output", "-o",
         type=str,
         default=None,
@@ -135,7 +129,7 @@ def main():
         nmck_range=nmck_range,
         period_years=args.period,
         min_similarity=args.min_similarity,
-        require_auction=not args.no_auction_required
+        require_auction=False
     )
     
     # Формирование сводки
