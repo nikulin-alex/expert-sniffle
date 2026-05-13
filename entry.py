@@ -26,8 +26,15 @@ def main():
     parser.add_argument(
         "--data", "-d",
         type=str,
+        default=None,
+        help="Путь к JSON файлу с новой закупкой для анализа (параметры берутся из этой записи)"
+    )
+    
+    parser.add_argument(
+        "--base", "-b",
+        type=str,
         default="data.json",
-        help="Путь к JSON файлу с данными о закупках (по умолчанию: data.json)"
+        help="Путь к JSON файлу с историческими данными для поиска похожих закупок (по умолчанию: data.json)"
     )
     
     parser.add_argument(
@@ -96,35 +103,77 @@ def main():
     
     args = parser.parse_args()
     
-    # Проверка существования файла с данными
-    data_file = Path(args.data)
-    if not data_file.exists():
-        print(f"Ошибка: файл с данными '{args.data}' не найден", file=sys.stderr)
+    # Определение файлов для загрузки
+    new_procurement_file = None
+    base_data_file = Path(args.base)
+    
+    # Если указан файл с новой закупкой, загружаем его
+    if args.data:
+        new_procurement_file = Path(args.data)
+        if not new_procurement_file.exists():
+            print(f"Ошибка: файл с новой закупкой '{args.data}' не найден", file=sys.stderr)
+            sys.exit(1)
+    
+    # Проверка существования файла с базой данных
+    if not base_data_file.exists():
+        print(f"Ошибка: файл с базой данных '{args.base}' не найден", file=sys.stderr)
         sys.exit(1)
     
-    # Загрузка данных
+    # Загрузка базы исторических данных
     try:
-        procurements_data = load_data(args.data)
+        procurements_data = load_data(args.base)
     except Exception as e:
-        print(f"Ошибка при загрузке данных: {e}", file=sys.stderr)
+        print(f"Ошибка при загрузке базы данных: {e}", file=sys.stderr)
         sys.exit(1)
     
-    # Инициализация анализатора
+    # Инициализация анализатора и загрузка исторических данных
     analyzer = ProcurementAnalyzer()
     analyzer.load_procurements(procurements_data)
     
+    # Параметры поиска (по умолчанию пустые)
+    customer = args.customer
+    region = args.region
+    work_type = args.work_type
+    nmck_min_val = args.nmck_min
+    nmck_max_val = args.nmck_max
+    
+    # Если передан файл с новой закупкой, извлекаем параметры из него
+    if new_procurement_file:
+        try:
+            new_data = load_data(new_procurement_file)
+            if isinstance(new_data, list) and len(new_data) > 0:
+                new_record = new_data[0]  # Берем первую запись
+            else:
+                new_record = new_data
+            
+            # Извлекаем параметры из новой записи
+            if not customer and "Организация, осуществляющая размещение" in new_record:
+                customer = new_record["Организация, осуществляющая размещение"]
+            if not region and "Регион" in new_record:
+                region = new_record["Регион"]
+            if not work_type and "Наименование объекта закупки" in new_record:
+                work_type = new_record["Наименование объекта закупки"]
+            if nmck_min_val is None and "Начальная (максимальная) цена контракта" in new_record:
+                nmck_str = new_record["Начальная (максимальная) цена контракта"]
+                if isinstance(nmck_str, str):
+                    nmck_str = nmck_str.replace(" ", "").replace(",", ".")
+                nmck_min_val = float(nmck_str)
+        except Exception as e:
+            print(f"Ошибка при чтении новой закупки: {e}", file=sys.stderr)
+            sys.exit(1)
+    
     # Формирование диапазона НМЦК
     nmck_range = None
-    if args.nmck_min is not None or args.nmck_max is not None:
-        nmck_min = args.nmck_min if args.nmck_min is not None else 0.0
-        nmck_max = args.nmck_max if args.nmck_max is not None else float('inf')
+    if nmck_min_val is not None or nmck_max_val is not None:
+        nmck_min = nmck_min_val if nmck_min_val is not None else 0.0
+        nmck_max = nmck_max_val if nmck_max_val is not None else float('inf')
         nmck_range = (nmck_min, nmck_max)
     
     # Поиск схожих закупок
     similar = analyzer.find_similar(
-        customer=args.customer,
-        region=args.region,
-        work_type=args.work_type,
+        customer=customer,
+        region=region,
+        work_type=work_type,
         keywords=args.keywords,
         nmck_range=nmck_range,
         period_years=args.period,
@@ -135,9 +184,9 @@ def main():
     # Формирование сводки
     summary = analyzer.generate_summary(
         similar_procurements=similar,
-        current_customer=args.customer,
-        current_region=args.region,
-        current_work_type=args.work_type,
+        current_customer=customer or "",
+        current_region=region or "",
+        current_work_type=work_type or "",
         current_nmck=nmck_range[0] if nmck_range else 0.0
     )
     
