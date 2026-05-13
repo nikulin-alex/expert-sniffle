@@ -52,7 +52,7 @@ def calculate_median(values: List[float]) -> float:
 
 def parse_price(price_str: str) -> float:
     """Парсинг строки с ценой в числовое значение."""
-    if not price_str:
+    if not price_str or not isinstance(price_str, str):
         return 0.0
     
     if isinstance(price_str, (int, float)):
@@ -65,6 +65,27 @@ def parse_price(price_str: str) -> float:
         return float(price_str)
     except ValueError:
         return 0.0
+
+
+def extract_final_price(record: dict) -> float:
+    """
+    Извлекает итоговую цену контракта из записи.
+    Приоритет: поле 'amount' в массиве 'auction'.
+    """
+    # Пробуем найти в массиве auction
+    auction_list = record.get('auction', [])
+    if isinstance(auction_list, list) and len(auction_list) > 0:
+        first_auction = auction_list[0]
+        if isinstance(first_auction, dict):
+            amount_str = first_auction.get('amount')
+            if amount_str:
+                price = parse_price(amount_str)
+                if price > 0:
+                    return price
+    
+    # Если не нашли в auction, пробуем другие возможные поля (на всякий случай)
+    # Но в данном датасете основной источник - auction
+    return 0.0
 
 
 def similarity_score(text1: str, text2: str) -> float:
