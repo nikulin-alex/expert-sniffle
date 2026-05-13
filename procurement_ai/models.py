@@ -41,6 +41,7 @@ class ProcurementRecord:
     nmck: float = 0.0
     auction_results: List[AuctionInfo] = field(default_factory=list)
     raw_data: Dict[str, Any] = field(default_factory=dict)
+    publication_date: Optional[datetime] = None
     
     @property
     def final_amount(self) -> Optional[float]:
@@ -70,6 +71,15 @@ class ProcurementRecord:
         auction_raw = data.get("auction", [])
         auction_results = [AuctionInfo.from_dict(a) for a in auction_raw] if auction_raw else []
         
+        # Извлечение даты публикации (используем дату проведения аукциона)
+        publication_date = None
+        date_str = data.get("Дата проведения аукциона в электронной форме", "")
+        if date_str:
+            try:
+                publication_date = datetime.strptime(date_str, "%d.%m.%Y")
+            except ValueError:
+                pass
+        
         return cls(
             reg_number=data.get("reg_number", ""),
             customer=data.get("Организация, осуществляющая размещение", ""),
@@ -77,7 +87,8 @@ class ProcurementRecord:
             work_type=data.get("Наименование объекта закупки", ""),
             nmck=nmck,
             auction_results=auction_results,
-            raw_data=data
+            raw_data=data,
+            publication_date=publication_date
         )
 
 
