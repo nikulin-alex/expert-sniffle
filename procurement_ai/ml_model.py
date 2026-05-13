@@ -173,7 +173,7 @@ class LogisticRegressionModel:
         z = max(-500, min(500, z))
         return 1 / (1 + math.exp(-z))
     
-    def fit(self, X: List[List[float]], y: List[float]):
+    def fit(self, X: List[List[float]], y: List[float], verbose: bool = True):
         """Обучение модели на данных."""
         if not X or not y:
             raise ValueError("Данные для обучения пусты")
@@ -221,7 +221,7 @@ class LogisticRegressionModel:
             avg_loss = total_loss / n_samples
             self.training_history.append(avg_loss)
             
-            if iteration % 100 == 0:
+            if verbose and iteration % 100 == 0:
                 print(f"Итерация {iteration}, Loss: {avg_loss:.6f}")
         
         self.is_fitted = True
@@ -274,13 +274,14 @@ class ReductionStrategyPredictor:
         self.model = LogisticRegressionModel(learning_rate=0.01, n_iterations=500)
         self.is_trained = False
     
-    def train(self, records: List[Dict[str, Any]], target_field: str = 'reduction_percent'):
+    def train(self, records: List[Dict[str, Any]], target_field: str = 'reduction_percent', verbose: bool = True):
         """
         Обучение модели на исторических данных.
         
         Args:
             records: Список записей закупок с полем процента снижения
             target_field: Имя поля с процентом снижения (по умолчанию 'reduction_percent')
+            verbose: Выводить ли прогресс обучения (по умолчанию True)
         """
         # Сначала обучаем экстрактор признаков на всех записях
         self.feature_extractor.fit(records)
@@ -296,16 +297,22 @@ class ReductionStrategyPredictor:
                     X.append(features)
                     y.append(float(record[target_field]))
                 except Exception as e:
-                    print(f"Предупреждение: не удалось обработать запись {record.get('reg_number', 'unknown')}: {e}")
+                    if verbose:
+                        print(f"Предупреждение: не удалось обработать запись {record.get('reg_number', 'unknown')}: {e}")
         
         if not X:
             raise ValueError("Нет подходящих данных для обучения")
         
         # Обучение модели
-        print(f"Обучение модели на {len(X)} записях...")
-        self.model.fit(X, y)
+        if verbose:
+            print(f"Обучение модели на {len(X)} записях...")
+        
+        # Передаём verbose в модель для контроля вывода
+        self.model.fit(X, y, verbose=verbose)
         self.is_trained = True
-        print("Обучение завершено!")
+        
+        if verbose:
+            print("Обучение завершено!")
     
     def predict(self, record: Dict[str, Any]) -> Dict[str, Any]:
         """
